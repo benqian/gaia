@@ -3,6 +3,8 @@
 
 'use strict';
 
+var MailAPI = null;
+
 const PAGE_TRANSITION_DURATION = 300,
   CACHE_DOM_PAGES = 2,
   DEFAULT_DIRECTION = 1,
@@ -39,33 +41,39 @@ var mail = {
 
       });
 
-      var accounts = mail.accounts.getAll();
-
       nodes.selectAccountList.innerHTML = '';
-      
-      accounts.forEach(function(account) {
-        var li = document.createElement('li');
-        //li.dataset.index = i;
 
-        li.addEventListener('click', function() {
+      var accountsSlice = MailAPI.viewAccounts();
+      // XXX hookup and use onadd/onremove instead...
+      accountsSlice.onsplice = function(index, howMany, addedItems, requested,
+                                        moreExpected) {
+        // - (dynamically) removed accounts
+        // (This should really only happen on the settings page.)
+        if (howMany) {
+          for (var i = index + howMany - 1; i >= index; i--) {
+            var account = accountsSlice.items[i];
+            account.element.parentNode.removeChild(account.element);
+          }
+        }
 
-          account = mail.accounts.get(account);
+        // - added/existing accounts
+        addedItems.forEach(function(account) {
+          var li = account.element = document.createElement('li');
+          //li.dataset.index = i;
 
-          if (account) {
+          li.addEventListener('click', function() {
             window.removeEventListener('keyup', ESCLitener);
             nodes.firstScreen.hidden = true;
-            mail.configAccount(account.account, account.password);
-          }
+            mail.findAndShowAccountInbox(account);
+          });
 
+          nodes.selectAccountList.appendChild(
+            li
+          ).appendChild(
+            document.createElement('h2')
+          ).textContent = account;
         });
-
-        nodes.selectAccountList.appendChild(
-          li
-        ).appendChild(
-          document.createElement('h2')
-        ).textContent = account;
-
-      });
+      };
 
       window.addEventListener('keyup', ESCLitener);
 
@@ -86,7 +94,7 @@ var mail = {
 
     nodes.loginForm.addEventListener('submit', function(e) {
 
-      var account = this.account.value,
+      var emailAddress = this.account.value,
         password = this.password.value;
 
       e.preventDefault();
@@ -97,8 +105,23 @@ var mail = {
 
       nodes.firstScreen.hidden = true;
 
-      mail.configAccount(account, password);
-
+      MailAPI.tryToCreateAccount(
+          {
+            host: 'localhost',
+            port: 993,
+            crypto: 'ssl',
+            username: emailAddress,
+            password: password,
+          },
+          function(err) {
+            if (err) {
+              // XXX display feedback if there was an error.
+              return;
+            }
+            // (account was successfully created)
+            mail.findAndShowAccountInbox(null);
+          }
+        );
     });
 
 
@@ -174,7 +197,50 @@ var mail = {
     }, true);
 
   },
-  mailScreen: function(account) {
+  // Hack to get the list of folders, pick the inbox corresponding to the
+  // inbox for the account requested/implied-by-username, and then show that
+  // folder's contents on the mailScreen.
+  //
+  // In the real implementation, the user would be presented with the list
+  // of folders and then display those, so this function would not exist.
+  findAndShowAccountInbox: function(account) {
+    var foldersSlice = MailAPI.viewFolders();
+    foldersSlice.onsplice = function(index, howMany, addedItems, requested,
+                                     moreExpected) {
+      var useNextInbox = (account === null);
+      for (var i = 0; i < addedItems.length; i++) {
+        var folder = addedItems[i];
+        if (useNextInbox && folder.type === 'inbox') {
+          mail.mailScreen(folder);
+          break;
+        }
+        if (folder.id === account.id)
+          useNextInbox = true;
+      }
+    };
+  },
+  mailScreen: function(folder) {
+    var msgSlice = MailAPI.viewFolderMessages(folder);
+    
+    msgSlice.onsplice = function(index, howMany, addedItems, requested,
+                                 moreExpected) {
+        // - removed messages
+        // (This should really only happen on the settings page.)
+        if (howMany) {
+          for (var i = index + howMany - 1; i >= index; i--) {
+            var message = msgSlice.items[i];
+            message.element.parentNode.removeChild(message.element);
+          }
+        }
+
+        // - added/existing accounts
+        var insertBuddy = (index >= nodes.messageList.childElementCount) ?
+                            null : nodes.messagesList.children[index];
+        addedItems.forEach(function(message) {
+          var domMessage = message.element = mail.messageConstructor(message);
+          nodes.messageList.insertBefore(domMessage, insertBuddy);
+        });
+      };
 
     var swipedTarget,
       swipeMove = function() {
@@ -257,67 +323,6 @@ var mail = {
     });
 
   },
-  configAccount: function(account, password) {
-    //back-end function
-    //of authorization and 
-    //connection to server
-
-    if (!mail.accounts.has(account)) {
-      mail.accounts.add(account, account, {
-        password: password,
-        account: account
-      });
-    }
-
-
-    mail.loadFolder(mail.folder, function() {
-      mail.mailScreen(account);
-    });
-
-  },
-  loadMessages: function(interval, success, error) {
-    var xhr = new XMLHttpRequest();
-
-    xhr.open('GET', 'fakemsgs.json', true);
-
-    xhr.onload = function(e) {
-      try {
-
-        let arr = JSON.parse(xhr.response);
-
-        success && success.call(xhr, 
-            arr.slice(0, Math.max(interval, arr.length))
-          );
-
-      } catch (e) {
-        error && error.call(xhr, e);
-      }
-    };  
-
-    xhr.onerror = function(e) {
-      error && error.call(xhr, e);
-    };
-
-    xhr.send(null);
-  },
-  loadFolder: function(folder, callback) {
-
-    var map = mail.folderMessages = new Map();
-
-    mail.loadMessages(MESSAGES_PER_SCREEN * 2, function(arr){
-      arr.forEach(function(message){
-        var domMessage = mail.messageConstructor(message);
-
-        map.set(domMessage, message)
-
-        nodes.messagesList.appendChild(domMessage);
-
-      });
-    });
-
-    callback && callback(folder);
-
-  },
   folder: 'inbox',
   defaultDirection: DEFAULT_DIRECTION,
   folderMessages: null,
@@ -337,83 +342,8 @@ var mail = {
       }
     };
   }()),
-  accounts: (function() {
-    var accounts,
-      saveAccounts = function() {
-        try {
-          localStorage[STORE_ACCOUNTS_KEYS] = JSON.stringify(accounts);
-        } catch (e) {
-          return false;
-        }
-
-        return true;
-      };
-
-    try {
-      let tmp = localStorage[STORE_ACCOUNTS_KEYS];
-      if (tmp) {
-        accounts = JSON.parse(tmp);
-      } else {
-        throw void 0;
-      }
-    } catch (e) {
-      accounts = {};
-    };
-    //console.log(accounts);
-    return {
-      add: function(main, account, data) {
-        if (!main || !account) return false;
-
-        if (accounts[main]) {
-        
-        } else {
-          accounts[main] = {};
-        }
-
-        accounts[main][account] = data;
-
-        return saveAccounts();
-      },
-      remove: function(main, account) {
-        if (!main || !account) return false;
-
-        if (accounts[main]) {
-          let tmp = accounts[main];
-
-          delete tmp[account];
-
-          if (!Object.keys(tmp).length) {
-            delete accounts[main];
-          }
-        }
-
-        return saveAccounts();
-
-      },
-      has: function(main, account) {
-        if (main && account && accounts[main]) {
-          return account in accounts[main];
-        } else if (main) {
-          return main in accounts;
-        } else {
-          return false;
-        }
-      },
-      get: function(main) {
-        if (main && accounts[main]) {
-          return accounts[main][main];
-        }
-      },
-      getAll: function() {
-        return Object.keys(accounts);
-      }
-    };
-
-  }()),
   messageConstructor: function(data) {
-    var message = document.createElement('article'),
-      from = data.from.match(R_ADRESS_PARTS),
-      date = new Date(data.date);
+    var message = document.createElement('article');
 
     message.setAttribute('role', 'row');
     message.classList.add('message-summary');
@@ -422,23 +352,27 @@ var mail = {
     let address = header.appendChild(document.createElement('address'));
     address.classList.add('message-summary-mail');
     address.appendChild(document.createElement('span')).textContent = [
-      date.getDate(),
-      date.getMonth() + 1,
-      date.getYear() - 100
+      data.date.getDate(),
+      data.date.getMonth() + 1,
+      data.date.getYear() - 100
     ].join('.').replace(/(^|\.)(\d)(?!\d)($|\.)/g, '$10$2$3');
     let author = header.appendChild(document.createElement('h1'));
     author.classList.add('message-summary-author');
-    author.textContent = from[1] || from[2];
+    author.textContent = data.author.name || data.author.address;
     let subject = header.appendChild(document.createElement('h2'));
     subject.classList.add('message-summary-subject');
     subject.textContent = data.subject;
     let summary = message.appendChild(document.createElement('div'));
     summary.classList.add('message-summary-text');
-    summary.textContent = data.body.slice(0, Math.min(data.body.length, 200));
+    summary.textContent = data.snippet;
 
-    //message.dataset.index = 0;
+    // also available:
+    //data.isRead
+    //data.isStarred
+    //data.isRepliedTo
+    //data.hasAttachments
 
-    message.dataset.messageId = +new Date;
+    message.dataset.messageId = data.id;
 
     return message;
   },
@@ -572,4 +506,18 @@ document.addEventListener('DOMContentLoaded', load(function() {
 
 //document.addEventListener('apploaded', function );
 
-document.addEventListener('apploaded', mail.firstScreen, true);
+document.addEventListener('apploaded', function() {
+    // This should ideally be kicked off prior to the apploaded notification.
+    console.log('App Loaded, requesting Mail API');
+    try {
+      window.gimmeMailAPI(
+        function(mailAPI) {
+          console.log('Mail API acquired, loading first screen');
+          MailAPI = mailAPI;
+          mail.firstScreen();
+        });
+    }
+    catch (ex) {
+      console.error('Problem requesting Mail API', ex);
+    }
+  }, true);

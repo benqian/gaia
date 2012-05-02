@@ -275,7 +275,6 @@ button:active {
 }
 
 .login-header {
-  //font-style: ;
   font-weight: normal;
   text-align: left;
 }
@@ -364,7 +363,6 @@ button:active {
 }
 
 .field input:focus ~ .clean-button {
-  //display: block;
 }
 
 .page {
@@ -411,5 +409,10 @@ button:active {
 }
 
 .select-exists-list li:active {
+<<<<<<< Updated upstream
   background: gray;
 };
+=======
+	background: gray;
+}
+>>>>>>> Stashed changes
