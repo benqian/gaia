@@ -40,7 +40,7 @@ console.log("TEST!");
 				<a href="#account" class="account-bar" id="account-bar">
 					<!--<div><span></span></div>-->
 				</a>
-				<a href="#change-folder" class="folder" id="folder">
+				<a href="#change-folder" class="current-folder" id="current-folder">
 					<div><span>Inbox</span>&nbsp;<span>10/30</span></div>
 				</a>
 			</div>
@@ -50,9 +50,6 @@ console.log("TEST!");
 		</header>
 		<div class="main" id="main">
 			<section class="messages-list" id="messages-list">
-				
-			</section>
-			<section class="folders" hidden id="folders">
 				
 			</section>
 			<section class="messages" hidden id="messages">
@@ -70,6 +67,10 @@ console.log("TEST!");
 			</a>
 		</div>
 	</div>
+  <div class="folder-screen page" hidden id="folder-screen">
+    <div class="folders" id="folders">
+    </div>      
+  </div>
 	<div class="first-screen page" hidden id="first-screen">
 		<header class="top">
 			<div class="userbar">

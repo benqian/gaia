@@ -184,6 +184,31 @@ input, button, textarea {
   height: 100%;
   width: 100%;
 }
+
+.folder-screen {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.folders {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  background: white;
+}
+.folder-name {
+  font-weight: normal;
+  line-height: 22px;
+  margin: 6px;
+  font-size: 19px;
+}
+.folderType-account {
+  font-weight: bold;
+  color: #555;
+  background-color: #eee;
+}
+
 .mail-screen {
   width: 100%;
   height: 100%;

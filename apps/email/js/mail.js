@@ -28,68 +28,8 @@ var mail = {
     nodes.firstScreen.hidden = false;
 
     nodes.selectExistButton.addEventListener('click', function() {
-      nodes.selectAccount.style.top = window.innerHeight + 'px';
-      nodes.selectAccount.hidden = false;
-      window.addEventListener('MozAfterPaint', function afterPaint() {
-        window.removeEventListener('MozAfterPaint', afterPaint);
-
-        Transition.run(nodes.selectAccount, {
-          top: 0
-        }, {
-          duration: 300
-        });
-
-      });
-
-      nodes.selectAccountList.innerHTML = '';
-
-      var accountsSlice = MailAPI.viewAccounts();
-      // XXX hookup and use onadd/onremove instead...
-      accountsSlice.onsplice = function(index, howMany, addedItems, requested,
-                                        moreExpected) {
-        // - (dynamically) removed accounts
-        // (This should really only happen on the settings page.)
-        if (howMany) {
-          for (var i = index + howMany - 1; i >= index; i--) {
-            var account = accountsSlice.items[i];
-            account.element.parentNode.removeChild(account.element);
-          }
-        }
-
-        // - added/existing accounts
-        addedItems.forEach(function(account) {
-          var li = account.element = document.createElement('li');
-          //li.dataset.index = i;
-
-          li.addEventListener('click', function() {
-            window.removeEventListener('keyup', ESCLitener);
-            nodes.firstScreen.hidden = true;
-            mail.findAndShowAccountInbox(account);
-          });
-
-          nodes.selectAccountList.appendChild(
-            li
-          ).appendChild(
-            document.createElement('h2')
-          ).textContent = account;
-        });
-      };
-
-      window.addEventListener('keyup', ESCLitener);
-
-      function ESCLitener(e) {
-        if (e.keyCode === e.DOM_VK_ESCAPE) {
-          e.preventDefault();
-          Transition.stop(nodes.selectAccount);
-          Transition.run(nodes.selectAccount, {
-           top: window.innerHeight + 'px'
-          }, {
-            duration: 300
-          });
-          window.removeEventListener('keyup', ESCLitener);
-        }
-      }
-
+      nodes.firstScreen.hidden = true;
+      mail.folderScreen();
     });
 
     nodes.loginForm.addEventListener('submit', function(e) {
@@ -121,7 +61,7 @@ var mail = {
               return;
             }
             // (account was successfully created)
-            mail.findAndShowAccountInbox(null);
+            mail.folderScreen();
           }
         );
     });
@@ -199,35 +139,44 @@ var mail = {
     }, true);
 
   },
-  // Hack to get the list of folders, pick the inbox corresponding to the
-  // inbox for the account requested/implied-by-username, and then show that
-  // folder's contents on the mailScreen.
-  //
-  // In the real implementation, the user would be presented with the list
-  // of folders and then display those, so this function would not exist.
-  findAndShowAccountInbox: function(account) {
-    console.log('Finding and showing inbox for', account);
+  folderScreen: function() {
     var foldersSlice = MailAPI.viewFolders();
     foldersSlice.onsplice = function m_onsplice(index, howMany, addedItems,
                                                 requested, moreExpected) {
-      var useNextInbox = (account === null);
-      for (var i = 0; i < addedItems.length; i++) {
-        var folder = addedItems[i];
-        if (useNextInbox && folder.type === 'inbox') {
-          console.log('Found inbox, showing:', folder);
-          mail.mailScreen(folder);
-          return;
+      var folder;
+      if (howMany) {
+        for (var i = index + howMany - 1; i >= index; i--) {
+          folder = msgSlice.items[i];
+          folder.element.parentNode.removeChild(folder.element);
         }
-        if (!useNextInbox && folder.id === account.id)
-          useNextInbox = true;
       }
-      console.warn('Did not find inbox amongst', addedItems.length,
-                   'folders, problem!');
+
+      var insertBuddy = (index >= nodes.folders.childElementCount) ?
+                          null : nodes.folders.children[index];
+      addedItems.forEach(function(folder) {
+          folder.element = mail.makeFolderDOM(folder);
+          nodes.folders.insertBefore(folder.element, insertBuddy);
+          if (folder.selectable) {
+            // (we don't actually need a closure)
+            folder.element.addEventListener('click', function() {
+                nodes.folderScreen.hidden = true;
+                mail.mailScreen(folder);
+              }, false);
+          }
+        });
     };
-    console.log('Set onsplice to', foldersSlice.onsplice);
+
+    nodes.folderScreen.hidden = false;
+  },
+  killMailScreen: function() {
+    if (nodes.mailScreen.slice) {
+      nodes.mailScreen.slice.die();
+      nodes.mailScreen.slice = null;
+    }
+    nodes.mailScreen.hidden = true;
   },
   mailScreen: function(folder) {
-    var msgSlice = MailAPI.viewFolderMessages(folder);
+    var msgSlice = nodes.mailScreen.slice = MailAPI.viewFolderMessages(folder);
     
     msgSlice.onsplice = function(index, howMany, addedItems, requested,
                                  moreExpected) {
@@ -240,7 +189,6 @@ var mail = {
           }
         }
 
-        console.log(addedItems.length, 'messages to add');
         // - added/existing accounts
         var insertBuddy = (index >= nodes.messagesList.childElementCount) ?
                             null : nodes.messagesList.children[index];
@@ -277,6 +225,7 @@ var mail = {
 
     nodes.mailScreen.hidden = false;
 
+    nodes.accountBar.innerHTML = '';
     nodes.accountBar
       .appendChild(document.createElement('div'))
       .appendChild(document.createElement('span'))
@@ -333,23 +282,16 @@ var mail = {
   },
   folder: 'inbox',
   defaultDirection: DEFAULT_DIRECTION,
-  folderMessages: null,
-  messagesList: (function(){
-
-    var memmoryStack = {};
-
-    return {
-      getById: function(){
-
-      },
-      updateList: function(){
-
-      },
-      clearList: function(){
-
-      }
-    };
-  }()),
+  makeFolderDOM: function(folder) {
+    var folderNode = document.createElement('article');
+    folderNode.setAttribute('role', 'row');
+    folderNode.classList.add('folder-item');
+    folderNode.classList.add('folderType-' + folder.type);
+    var folderName = folderNode.appendChild(document.createElement('h1'));
+    folderName.classList.add('folder-name');
+    folderName.textContent = folder.name;
+    return folderNode;
+  },
   messageConstructor: function(data) {
     var message = document.createElement('article');
 
@@ -438,11 +380,13 @@ document.addEventListener('DOMContentLoaded', load(function() {
   [
     'account-field',
     'account-bar',
-    'folder',
+    'current-folder',
     'messages-list',
     'messages',
     'main',
     'first-screen',
+    'folder-screen',
+    'folders',
     'login-form',
     'select-exist-button',
     'mail-screen',
@@ -496,6 +440,15 @@ document.addEventListener('DOMContentLoaded', load(function() {
 
   });
 
+  // XXX I'm not sure what the event-handling plan is as things are structured?
+  nodes.currentFolder.addEventListener('click', function() {
+      // tell the current messages list to die
+      mail.killMailScreen();
+
+      // there is no need to re-trigger the folder-screen page; it already
+      // exists and is correctly populated.
+      nodes.folderScreen.hidden = false;
+    }, false);
 }), true);
 
 /*window.addEventListener('localized', load(function() {
