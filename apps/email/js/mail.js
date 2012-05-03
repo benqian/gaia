@@ -105,11 +105,13 @@ var mail = {
 
       nodes.firstScreen.hidden = true;
 
+      // XXX just hardcode use of localhost for now, and no SSL because
+      // localhost does not have a valid certificate.
       MailAPI.tryToCreateAccount(
           {
             host: 'localhost',
-            port: 993,
-            crypto: 'ssl',
+            port: 143,
+            crypto: false,
             username: emailAddress,
             password: password,
           },
@@ -204,20 +206,25 @@ var mail = {
   // In the real implementation, the user would be presented with the list
   // of folders and then display those, so this function would not exist.
   findAndShowAccountInbox: function(account) {
+    console.log('Finding and showing inbox for', account);
     var foldersSlice = MailAPI.viewFolders();
-    foldersSlice.onsplice = function(index, howMany, addedItems, requested,
-                                     moreExpected) {
+    foldersSlice.onsplice = function m_onsplice(index, howMany, addedItems,
+                                                requested, moreExpected) {
       var useNextInbox = (account === null);
       for (var i = 0; i < addedItems.length; i++) {
         var folder = addedItems[i];
         if (useNextInbox && folder.type === 'inbox') {
+          console.log('Found inbox, showing:', folder);
           mail.mailScreen(folder);
-          break;
+          return;
         }
-        if (folder.id === account.id)
+        if (!useNextInbox && folder.id === account.id)
           useNextInbox = true;
       }
+      console.warn('Did not find inbox amongst', addedItems.length,
+                   'folders, problem!');
     };
+    console.log('Set onsplice to', foldersSlice.onsplice);
   },
   mailScreen: function(folder) {
     var msgSlice = MailAPI.viewFolderMessages(folder);
@@ -233,12 +240,13 @@ var mail = {
           }
         }
 
+        console.log(addedItems.length, 'messages to add');
         // - added/existing accounts
-        var insertBuddy = (index >= nodes.messageList.childElementCount) ?
+        var insertBuddy = (index >= nodes.messagesList.childElementCount) ?
                             null : nodes.messagesList.children[index];
         addedItems.forEach(function(message) {
           var domMessage = message.element = mail.messageConstructor(message);
-          nodes.messageList.insertBefore(domMessage, insertBuddy);
+          nodes.messagesList.insertBefore(domMessage, insertBuddy);
         });
       };
 
@@ -272,7 +280,7 @@ var mail = {
     nodes.accountBar
       .appendChild(document.createElement('div'))
       .appendChild(document.createElement('span'))
-      .textContent = account;
+      .textContent = folder.name;
 
     nodes.mailScreen.addEventListener('mousedown', function(e) {
       swipedTarget = getMessage(e.target);
