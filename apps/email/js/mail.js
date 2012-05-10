@@ -11,9 +11,13 @@ const PAGE_TRANSITION_DURATION = 300,
   MESSAGES_PER_SCREEN = 5,
 
   //simple regexp for parse addresses
-  R_ADRESS_PARTS = /^(?:([\w\s]+) )?<(.+)>$/,
+  R_ADDRESS_PARTS = /^(?:([\w\s]+) )?<(.+)>$/,
 
-  STORE_ACCOUNTS_KEYS = 'mail:accounts';
+  R_HTML_TEMPLATE = /\{\{(\w+?)\}\}/g,
+
+  STORE_ACCOUNTS_KEYS = 'mail:accounts',
+
+  DEFAULT_FOLDER = 'INBOX';
 
 var mail = {
   firstScreen: function() {
@@ -199,16 +203,11 @@ var mail = {
       };
 
     var swipedTarget,
-      swipeMove = function() {
+      taped = false,
+      left = 0,
+      width = 0,
+      started = false,
 
-      },
-      swipeEnd = function() {
-
-        swipedTarget = null;
-        document.removeEventListener('mousemove', swipeMove);
-        document.removeEventListener('swipeend', swipeEnd);
-
-      },
       getMessage = function(target){
 
         while (!('messageId' in target.dataset)) {
@@ -221,6 +220,60 @@ var mail = {
 
         return target;
 
+      },
+      cleanTap = function() {
+        document.removeEventListener('tapstart', tapStart);
+        document.removeEventListener('tapend', tapEnd);
+        taped = false;
+      },
+      tapEnd = function() {
+
+        mail.readMessage(swipedTarget);
+
+        if (taped) {
+          swipedTarget.classList.remove('highlight');
+        }
+        cleanTap();
+        cleanSwipe();
+
+      },
+      tapStart = function() {
+        swipedTarget.classList.add('highlight');
+        taped = true;
+
+        document.addEventListener('tapend', tapEnd);
+      },
+      cleanSwipe = function() {
+        document.removeEventListener('swipestart', swipeStart);
+        document.removeEventListener('mousemove', mouseMove);
+        document.removeEventListener('swipeend', swipeEnd);
+        swipedTarget = null;
+      },
+      swipeEnd = function() {
+        swipedTarget.classList.remove('highlight');
+        cleanSwipe();
+      },
+      swipeStart = function(e) {
+
+        if (taped) {
+          cleanTap();
+        }
+
+        if (e.detail & SWIPE_HORIZONTAL) {
+          console.log('swipe');
+          document.addEventListener('mousemove', mouseMove);
+        }
+
+
+      },
+      mouseMove = function(e) {
+        if (!started && left - e.layerX > width / 3) {
+          started = true;
+        }
+
+        if (started) {
+
+        }
       };
 
     nodes.mailScreen.hidden = false;
@@ -231,53 +284,36 @@ var mail = {
       .appendChild(document.createElement('span'))
       .textContent = folder.name;
 
-    nodes.mailScreen.addEventListener('mousedown', function(e) {
+    nodes.mailScreen.addEventListener('mousedown', function downListener(e) {
       swipedTarget = getMessage(e.target);
 
       if(!swipedTarget) {
         return;
       }
 
-      let left = e.layerX,
-        width = swipedTarget.offsetWidth,
-        started = false;
+      left = e.layerX,
+      width = swipedTarget.offsetWidth,
+      started = false;
 
-      document.addEventListener('tapstart', function() {
-        swipedTarget.classList.add('highlight');
-      });
+      document.addEventListener('tapstart', tapStart);
 
       if (left > width - width / 10) {
-        document.addEventListener('swipestart', function listenStart(e) {
-          if (e.detail & SWIPE_HORIZONTAL) {
-            console.log('swipe');
-            document.addEventListener('mousemove', function(e) {
-              console.log('move');
-              if (!started && left - e.layerX > width / 3) {
-                started = true;
-              }
-
-              if (started) {
-
-              }
-            });
-          }
-        });
-        document.addEventListener('mouseup', function() {
-
-        });
+        document.addEventListener('swipestart', swipeStart);
       }
+
+      document.addEventListener('swipeend', swipeEnd);
 
     }, true);
 
-    nodes.main.addEventListener('tapstart', function(e) {
-      console.log('tapstart');
-    });
-    nodes.main.addEventListener('tapend', function(e) {
-      console.log('tapend');
-    });
-    nodes.main.addEventListener('longtapstart', function(e) {
-      console.log('longtap');
-    });
+    mail.screens = new Paging(nodes.mailScreen);
+
+    let xhr = mail.messageTemplate = new XMLHttpRequest();
+
+    xhr.open('GET', 'mailtest.htm', true);
+
+    xhr.overrideMimeType('text/html');
+
+    xhr.send();
 
   },
   folder: 'inbox',
@@ -325,6 +361,51 @@ var mail = {
     message.dataset.messageId = data.id;
 
     return message;
+  },
+  readMessage: function(domMessage) {
+    var read = function() {
+      if (this.responseText) {
+        let text = this.responseText,
+          iframe = document.createElement('iframe'),
+          message = mail.folder.map.get(domMessage);
+
+        text = text.replace(R_HTML_TEMPLATE, function(str, key/*, offset, input*/){
+          return message[key] || '';
+        });
+
+        let url = window.URL.createObjectURL(
+            new Blob([text], {
+              type: 'text\/html'
+            })
+          );
+
+        //has no affect in gecko :(
+        iframe.setAttribute('sandbox', '');
+
+        iframe.className = 'message-frame';
+
+        nodes.messageScreen.mainContent.appendChild(iframe);
+
+        iframe.src = url;
+
+        nodes.messageScreen.addEventListener('poppage', function popListener() {
+          window.URL.revokeObjectURL(url);
+          this.mainContent.innerHTML = '';
+          this.removeEventListener('poppage', popListener);
+        });
+
+        mail.screens.moveToPage(nodes.messageScreen);
+      }
+    };
+
+    if (mail.messageTemplate.readyState === 4) {
+      read.call(mail.messageTemplate);
+    } else {
+      mail.messageTemplate.onload = read;
+    }
+
+    //console.log(nodes.messageScreen.hidden = false);
+
   },
   updatePages: function(page, dir) {
     var tmp,
@@ -380,9 +461,9 @@ document.addEventListener('DOMContentLoaded', load(function() {
   [
     'account-field',
     'account-bar',
-    'current-folder',
+    'folder-title',
     'messages-list',
-    'messages',
+    'message',
     'main',
     'first-screen',
     'folder-screen',
@@ -393,7 +474,8 @@ document.addEventListener('DOMContentLoaded', load(function() {
     'pre-mail-selected',
     'pre-select-mail',
     'select-account',
-    'select-account-list'
+    'select-account-list',
+    'message-screen'
   ].forEach(function(id) {
     var target = document.getElementById(id);
 
@@ -440,15 +522,20 @@ document.addEventListener('DOMContentLoaded', load(function() {
 
   });
 
-  // XXX I'm not sure what the event-handling plan is as things are structured?
-  nodes.currentFolder.addEventListener('click', function() {
-      // tell the current messages list to die
-      mail.killMailScreen();
+  let pages = document.querySelectorAll('.page');
 
-      // there is no need to re-trigger the folder-screen page; it already
-      // exists and is correctly populated.
-      nodes.folderScreen.hidden = false;
-    }, false);
+  [].forEach.call(pages, function(page) {
+    page.backButton = page.querySelector('.userbar .back-button');
+
+    if (page.backButton) {
+      page.backButton.addEventListener('click', function() {
+        mail.screens.toPreviousPage();
+      });
+    }
+
+    page.mainContent = page.querySelector('.main');
+
+  });
 }), true);
 
 /*window.addEventListener('localized', load(function() {

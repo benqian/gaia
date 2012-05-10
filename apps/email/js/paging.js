@@ -6,36 +6,23 @@
 
 const PAGING_TRANSITION = 300;
 
-var Paging = function Paging(page, data) {
-  this.pages = new Map();
+var Paging = function Paging(page) {
   this.navigationStack = [];
 
   if (page) {
-    this.registerPage(page, data);
     this.navigationStack.push(page);
-    page.classList.remove('hidden');
+    page.hidden = false;
   }
 };
 
 Paging.prototype = {
-  registerPage: function(page, data) {
-    //{
-    // push: function(){},
-    // pop: function(){}
-    //}
-
-    if (page && !this.pages.has(page)) {
-      this.pages.set(page, data || {});
-      page.classList.add('hidden');
-    }
-
-  },
   moveToPage: function(page) {
-    if (!page) return false;
+    if (!page || this.moving) return false;
 
-    var data = this.pages.get(page),
-      stack = this.navigationStack,
+    var stack = this.navigationStack,
       self = this;
+
+    this.moving = true;
 
     if (stack.length) {
       let current = stack[stack.length - 1];
@@ -46,81 +33,83 @@ Paging.prototype = {
         }, {
           duration: PAGING_TRANSITION
         }, function() {
-          var data = self.pages.get(current);
-          if (data && data.pop) {
-            data.pop.call(current);
-          }
-          current.classList.add('hidden');
+          var e = new CustomEvent('poppage');
+          current.dispatchEvent(e);
+          current.hidden = true;
         });
       };
     };
 
     {
+
+      window.addEventListener('MozAfterPaint', function afterPaint(e) {
+
+        window.removeEventListener('MozAfterPaint', afterPaint);
+        moveCurrent && moveCurrent();
+        Transition.run(page, {
+         MozTransform: 'translate(0)'
+        }, {
+          duration: PAGING_TRANSITION
+        }, function() {
+          self.moving = false;
+        });
+
+      });
+
       stack.push(page)
       Transition.stop(page);
       page.style.MozTranstion = '';
       page.style.MozTransform = Transform.translate(window.innerWidth);
-      page.classList.remove('hidden');
-      if (data && data.push) {
-        data.push.call(page);
-      }
-
-      window.addEventListener('MozAfterPaint', function afterPaint() {
-        window.removeEventListener('MozAfterPaint', afterPaint);
-        moveCurrent();
-        Transition.run(page, {
-         MozTransform: ''
-        }, {
-          duration: PAGING_TRANSITION
-        });
-      });
+      page.hidden = false;
+      let e = new CustomEvent('pushpage');
+      page.dispatchEvent(e);
 
     }
   },
   toPreviousPage: function() {
     var stack = this.navigationStack,
-      current = stack.pop(),
       self = this;
 
-    if (current) {
-      let prev = stack[stack.length - 1];
+    if (stack.length > 1 && !self.moving) {
+      let current = stack.pop(),
+        prev = stack[stack.length - 1];
 
       Transition.stop(current);
-      if (prev) {
-        let data = self.pages.get(prev);
 
-        Transition.stop(prev);
+      self.moving = true;
 
-        prev.style.MozTransform = Transform.translate(-window.innerWidth);
-        prev.classList.remove('hidden');
 
-        if (data && data.push) {
-          data.push.call(prev);
-        }
+      window.addEventListener('MozAfterPaint', function afterPrev(e) {
 
-        window.addEventListener('MozAfterPaint', function afterPaint() {
-          window.removeEventListener('MozAfterPaint', afterPaint);
-          Transition.run(prev, {
-            MozTransform: ''
-          }, {
-            duration: PAGING_TRANSITION
-          });
+        window.removeEventListener('MozAfterPaint', afterPrev);
+        Transition.run(prev, {
+          MozTransform: ''
+        }, {
+          duration: PAGING_TRANSITION
+        }, function() {
+          self.moving = false;
         });
 
-      }
+      });
 
-      window.addEventListener('MozAfterPaint', function afterPaint() {
-        window.removeEventListener('MozAfterPaint', afterPaint);
+      Transition.stop(prev);
+
+      prev.style.MozTransform = Transform.translate(-window.innerWidth);
+      prev.hidden = false;
+
+      let e = new CustomEvent('pushpage');
+      prev.dispatchEvent(e);
+
+      window.addEventListener('MozAfterPaint', function afterCurrent() {
+        window.removeEventListener('MozAfterPaint', afterCurrent);
         Transition.run(current, {
           MozTransform: Transform.translate(window.innerWidth)
         }, {
           duration: PAGING_TRANSITION
         }, function() {
-          var data = self.pages.get(current);
-          if (data && data.pop) {
-            data.pop.call(current);
-          }
-          current.classList.add('hidden');
+          var e = new CustomEvent('poppage');
+          current.dispatchEvent(e);
+          current.hidden = true;
         });
       });
     }

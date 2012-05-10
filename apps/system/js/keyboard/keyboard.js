@@ -33,7 +33,8 @@ const IMEManager = {
     'hebrew': ['he'],
     'zhuyin': ['zh-Hant-Zhuyin'],
     'pinyin': ['zh-Hans-Pinyin'],
-    'arabic': ['ar']
+    'arabic': ['ar'],
+    'greek': ['el']
   },
 
   enableSetting: function km_enableSetting(theKey) {
@@ -468,7 +469,7 @@ const IMEManager = {
         switch (keyCode) {
           case KeyEvent.DOM_VK_BACK_SPACE:
           case KeyEvent.DOM_VK_RETURN:
-            window.navigator.mozKeyboard.sendKey(keyCode, keyCode);
+            window.navigator.mozKeyboard.sendKey(keyCode, 0);
             break;
 
           default:
@@ -575,7 +576,7 @@ const IMEManager = {
             this.currentEngine.click(keyCode);
             return;
           }
-          window.navigator.mozKeyboard.sendKey(keyCode, keyCode);
+          window.navigator.mozKeyboard.sendKey(keyCode, 0);
         }).bind(this);
 
         sendDelete(false);
@@ -793,7 +794,7 @@ const IMEManager = {
               break;
             }
 
-            window.navigator.mozKeyboard.sendKey(keyCode, keyCode);
+            window.navigator.mozKeyboard.sendKey(keyCode, 0);
           break;
 
           default:
