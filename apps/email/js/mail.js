@@ -1,6 +1,3 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- /
-/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
-
 'use strict';
 
 var MailAPI = null;
@@ -57,7 +54,7 @@ var mail = {
             port: 143,
             crypto: false,
             username: emailAddress,
-            password: password,
+            password: password
           },
           function(err) {
             if (err) {
@@ -113,29 +110,25 @@ var mail = {
       }
 
 
-      {
-        let account = nodes.loginForm.account,
-          value = account.value,
-          i = value.indexOf('@'),
-          domain = img.dataset.domain,
-          range = document.createRange();
+      var account = nodes.loginForm.account,
+        value = account.value,
+        i = value.indexOf('@'),
+        domain = img.dataset.domain,
+        range = document.createRange();
 
-        if (i !== -1) {
-          //console.log(value.slice(i));
-          value = value.slice(0, i) + '@' + domain;
-        } else {
-          i = value.length;
-          value = value + '@' + domain;
-        }
+      if (i !== -1) {
+        //console.log(value.slice(i));
+        value = value.slice(0, i) + '@' + domain;
+      } else {
+        i = value.length;
+        value = value + '@' + domain;
+      }
 
-        account.value = value;
-        account.focus();
-        account.setSelectionRange(i, i);
-
-      };
+      account.value = value;
+      account.focus();
+      account.setSelectionRange(i, i);
 
       e.preventDefault();
-
     });
 
     nodes.preSelectMail.addEventListener('mousedown', function(e) {
@@ -181,7 +174,7 @@ var mail = {
   },
   mailScreen: function(folder) {
     var msgSlice = nodes.mailScreen.slice = MailAPI.viewFolderMessages(folder);
-    
+
     msgSlice.onsplice = function(index, howMany, addedItems, requested,
                                  moreExpected) {
         // - removed messages
@@ -197,7 +190,7 @@ var mail = {
         var insertBuddy = (index >= nodes.messagesList.childElementCount) ?
                             null : nodes.messagesList.children[index];
         addedItems.forEach(function(message) {
-          var domMessage = message.element = mail.messageConstructor(message);
+          var domMessage = message.element = mail.makeMessageDOM(message);
           nodes.messagesList.insertBefore(domMessage, insertBuddy);
         });
       };
@@ -215,7 +208,7 @@ var mail = {
           if ((target = target.parentNode) === nodes.mailScreen) {
             return null;
           };
-          
+
         }
 
         return target;
@@ -278,13 +271,9 @@ var mail = {
 
     nodes.mailScreen.hidden = false;
 
-    nodes.accountBar.innerHTML = '';
-    nodes.accountBar
-      .appendChild(document.createElement('div'))
-      .appendChild(document.createElement('span'))
-      .textContent = folder.name;
+    nodes.folderTitle.textContent = folder.name;
 
-    nodes.mailScreen.addEventListener('mousedown', function downListener(e) {
+    nodes.mailScreen.mainContent.addEventListener('mousedown', function downListener(e) {
       swipedTarget = getMessage(e.target);
 
       if(!swipedTarget) {
@@ -297,6 +286,7 @@ var mail = {
 
       document.addEventListener('tapstart', tapStart);
 
+
       if (left > width - width / 10) {
         document.addEventListener('swipestart', swipeStart);
       }
@@ -306,17 +296,11 @@ var mail = {
     }, true);
 
     mail.screens = new Paging(nodes.mailScreen);
-
-    let xhr = mail.messageTemplate = new XMLHttpRequest();
-
-    xhr.open('GET', 'mailtest.htm', true);
-
-    xhr.overrideMimeType('text/html');
-
-    xhr.send();
-
+    nodes.messageFrame.header =
+      nodes.messageFrame.querySelector('.message-frame-header');
+    nodes.messageFrame.body =
+      nodes.messageFrame.querySelector('.message-frame-body');
   },
-  folder: 'inbox',
   defaultDirection: DEFAULT_DIRECTION,
   makeFolderDOM: function(folder) {
     var folderNode = document.createElement('article');
@@ -328,9 +312,10 @@ var mail = {
     folderName.textContent = folder.name;
     return folderNode;
   },
-  messageConstructor: function(data) {
+  makeMessageDOM: function(data) {
     var message = document.createElement('article');
 
+    message.header = data;
     message.setAttribute('role', 'row');
     message.classList.add('message-summary');
     let header = message.appendChild(document.createElement('header'));
@@ -362,47 +347,63 @@ var mail = {
 
     return message;
   },
-  readMessage: function(domMessage) {
-    var read = function() {
-      if (this.responseText) {
-        let text = this.responseText,
-          iframe = document.createElement('iframe'),
-          message = mail.folder.map.get(domMessage);
-
-        text = text.replace(R_HTML_TEMPLATE, function(str, key/*, offset, input*/){
-          return message[key] || '';
-        });
-
-        let url = window.URL.createObjectURL(
-            new Blob([text], {
-              type: 'text\/html'
-            })
-          );
-
-        //has no affect in gecko :(
-        iframe.setAttribute('sandbox', '');
-
-        iframe.className = 'message-frame';
-
-        nodes.messageScreen.mainContent.appendChild(iframe);
-
-        iframe.src = url;
-
-        nodes.messageScreen.addEventListener('poppage', function popListener() {
-          window.URL.revokeObjectURL(url);
-          this.mainContent.innerHTML = '';
-          this.removeEventListener('poppage', popListener);
-        });
-
-        mail.screens.moveToPage(nodes.messageScreen);
+  populateMessageBodyDom: function(mailBody) {
+    var header = nodes.messageFrame.header;
+    header.innerHTML = '';
+    function addHeaderEmails(key, pairs) {
+      var line = document.createElement('h2'),
+          label = document.createElement('span'),
+          people = document.createelement('span');
+      label.textContent = key;
+      label.className = 'message-header-key';
+      people.className = 'message-header-people';
+      for (var i = 0; i < pairs.length; i++) {
+        var pair = pairs[i],
+            personNode = document.createElement('span'), nameNode;
+        personNode.className = 'message-header-person';
+        if (pair.name) {
+          nameNode = document.createElement('span');
+          nameNode.className = 'message-header-name';
+          nameNode.textContent = pair.name;
+          personNode.appendChild(nameNode);
+        }
+        var addressNode = document.createElement('span');
+        addressNode.className = 'message-header-address';
+        addressNode.textContent = pair.address;
+        personNode.appendChild(addressNode);
+        people.appendChild(personNode);
       }
-    };
-
-    if (mail.messageTemplate.readyState === 4) {
-      read.call(mail.messageTemplate);
-    } else {
-      mail.messageTemplate.onload = read;
+      line.appendChild(label);
+      line.appendChild(people);
+      header.appendChild(line);
     }
+
+    addHeaderEmails('from', [header.author]);
+    if (mailBody.to && mailBody.to.length)
+      addHeaderEmails('to', mailBody.to);
+    if (mailBody.cc && mailBody.cc.length)
+      addHeaderEmails('cc', mailBody.cc);
+    if (mailBody.bcc && mailBody.bcc.length)
+      addHeaderEmails('bcc', mailBody.bcc);
+
+    var subject = header.appendChild(document.createElement('h2'));
+    subject.className = 'message-frame-subject';
+    subject.textContent = header.subject;
+
+    nodes.messageFrame.body.textContent = mailBody.bodyText;
+  },
+  readMessage: function(domMessage) {
+    var header = domMessage.header;
+    header.getBody(function(body) {
+      mail.populateMessageBodyDom(body);
+
+      nodes.messageScreen.addEventListener('poppage', function popListener() {
+        // (placeholder)
+        this.removeEventListener('poppage', popListener);
+      });
+
+      mail.screens.moveToPage(nodes.messageScreen);
+    });
 
     //console.log(nodes.messageScreen.hidden = false);
 
@@ -475,7 +476,8 @@ document.addEventListener('DOMContentLoaded', load(function() {
     'pre-select-mail',
     'select-account',
     'select-account-list',
-    'message-screen'
+    'message-screen',
+    'message-frame',
   ].forEach(function(id) {
     var target = document.getElementById(id);
 
