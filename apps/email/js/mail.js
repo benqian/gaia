@@ -50,10 +50,7 @@ var mail = {
       // localhost does not have a valid certificate.
       MailAPI.tryToCreateAccount(
           {
-            host: 'localhost',
-            port: 143,
-            crypto: false,
-            username: emailAddress,
+            emailAddress: emailAddress,
             password: password
           },
           function(err) {
