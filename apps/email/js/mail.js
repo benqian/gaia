@@ -309,7 +309,7 @@ var mail = {
     folderNode.classList.add('folderType-' + folder.type);
     var folderName = folderNode.appendChild(document.createElement('h1'));
     folderName.classList.add('folder-name');
-    folderName.textContent = folder.name;
+    folderName.textContent = folder.path;
     return folderNode;
   },
   makeMessageDOM: function(data) {
