@@ -22,7 +22,14 @@ var Settings = {
     // register web activity handler
     navigator.mozSetMessageHandler('activity', this.webActivityHandler);
 
-    this.loadGaiaCommit();
+    // Load the gaia commit when the corresponding pane is shown.
+    window.addEventListener('hashchange', function onHashChange(evt) {
+      if (!evt.newURL.endsWith('#more-info'))
+        return;
+
+      window.removeEventListener('hashchange', onHashChange);
+      Settings.loadGaiaCommit();
+    });
 
     var settings = this.mozSettings;
     if (!settings)
@@ -345,6 +352,16 @@ window.addEventListener('load', function loadSettings(evt) {
   }
 });
 
+window.addEventListener('hashchange', function handleHashChange(event) {
+  // most browsers now scroll content into view taking CSS transforms
+  // into account.  That's not what we want when moving between
+  // <section>s, because the being-moved-to section is offscreen when
+  // we navigate to its #hash.  The transitions assume the viewport is
+  // always at document 0,0.  So add a hack here to make that
+  // assumption true again.
+  window.scrollTo(0, 0);
+});
+
 // back button = close dialog || back to the root page
 // + prevent the [Return] key to validate forms
 window.addEventListener('keydown', function handleSpecialKeys(event) {
@@ -375,6 +392,9 @@ window.addEventListener('localized', function showBody() {
   // <body> children are hidden until the UI is translated
   if (document.body.classList.contains('hidden')) {
     // first run: show main page
+    if (!document.location.hash) {
+      document.location.hash = 'root';
+    }
     document.body.classList.remove('hidden');
   } else {
     // we were in #languages and selected another locale:

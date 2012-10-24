@@ -122,10 +122,10 @@ contacts.Form = (function() {
     if (!contact || !contact.id) {
       return;
     }
-    formView.classList.add('skin-dark');
+    formView.classList.add('skin-organic');
     saveButton.textContent = _('update');
     currentContact = contact;
-    deleteContactButton.classList.remove('hide');
+    deleteContactButton.parentNode.classList.remove('hide');
     formTitle.innerHTML = _('editContact');
     currentContactId.value = contact.id;
     givenName.value = contact.givenName || '';
@@ -176,13 +176,13 @@ contacts.Form = (function() {
   };
 
   var showAdd = function showAdd(params) {
-    formView.classList.remove('skin-dark');
+    formView.classList.remove('skin-organic');
     if (!params || params == -1 || !('id' in params)) {
       currentContact = {};
     }
     saveButton.setAttribute('disabled', 'disabled');
     saveButton.textContent = _('done');
-    deleteContactButton.classList.add('hide');
+    deleteContactButton.parentNode.classList.add('hide');
     formTitle.innerHTML = _('addContact');
 
     params = params || {};

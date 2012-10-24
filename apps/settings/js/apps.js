@@ -198,7 +198,7 @@ var ApplicationsList = {
 
     if (confirm(_('uninstallConfirm', {app: name}))) {
       this._displayedApp.uninstall();
-      this._displayedAppp = null;
+      this._displayedApp = null;
     }
   },
 
@@ -221,9 +221,11 @@ var ApplicationsList = {
   }
 };
 
-window.addEventListener('localized', function init(evt) {
-  window.removeEventListener('localized', init);
+window.addEventListener('hashchange', function onHashChange(evt) {
+  if (!evt.newURL.endsWith('#appPermissions'))
+    return;
 
+  window.removeEventListener('hashchange', onHashChange);
   ApplicationsList.init();
 });
 
