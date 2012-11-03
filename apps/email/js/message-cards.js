@@ -80,6 +80,8 @@ function MessageListCard(domNode, mode, args) {
     domNode.getElementsByClassName('msg-messages-sync-more')[0];
   this.syncMoreNode
     .addEventListener('click', this.onGetMoreMessages.bind(this), false);
+  this.progressNode =
+    domNode.getElementsByClassName('msg-list-progress')[0];
 
   // - header buttons: non-edit mode
   domNode.getElementsByClassName('msg-folder-list-btn')[0]
@@ -371,9 +373,14 @@ MessageListCard.prototype = {
     if (newStatus === 'synchronizing') {
       this.syncingNode.classList.remove('collapsed');
       this.syncMoreNode.classList.add('collapsed');
+
+      this.progressNode.value = this.messagesSlice ?
+                                this.messagesSlice.syncProgress : 0;
+      this.progressNode.classList.remove('collapsed');
     }
     else {
       this.syncingNode.classList.add('collapsed');
+      this.progressNode.classList.add('collapsed');
     }
   },
 
