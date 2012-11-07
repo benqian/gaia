@@ -376,11 +376,12 @@ MessageListCard.prototype = {
 
       this.progressNode.value = this.messagesSlice ?
                                 this.messagesSlice.syncProgress : 0;
-      this.progressNode.classList.remove('collapsed');
+console.log('progress', this.messagesSlice.syncProgress);
+      this.progressNode.classList.remove('hidden');
     }
     else {
       this.syncingNode.classList.add('collapsed');
-      this.progressNode.classList.add('collapsed');
+      this.progressNode.classList.add('hidden');
     }
   },
 
