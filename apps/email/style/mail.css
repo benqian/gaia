@@ -4,7 +4,7 @@
   display: none !important;
 }
 .hidden {
-  display: hidden !important;
+  visibility: hidden !important;
 }
 
 html {
